@@ -13,6 +13,20 @@ The hierarchy consists of the organization (root) at the top, followed by folder
 - Every google workspace account has only one organization associated with it. 
 - We can provide roles for users at the organizational level, these roles are inherited by all projects and folders that are present in the organization.
 
+**G-Suite domain** or **Cloud Identity** maps to Organization
+One Cloud Identity assigns to atmost one Organization
+
+Cloud Identity
+- Have Super admins
+- They assign the IAM role of Organization administrator to users
+
+Users with Organization administrator role is responsible for
+- Defining the structure of the resource hierarchy
+- Defining IAM policies over the resource hierarchy
+- Delegation of other management roles to other users
+
+GCP automatically assigns the **Project Creator** and **Billing Account Creator** IAM roles to all users in domain. *This allows any user to create projects and enable billing for the cost of resources.*
+
 ### 2. Folders
 
 - Folders provide an additional boundary and also separate one project from the other.
@@ -23,7 +37,8 @@ The hierarchy consists of the organization (root) at the top, followed by folder
 
 - Project is the core organizational component of Google Cloud.
 - The resources we are using belong to one specific project.
-- We can enable billing and also set billing alerts at the project level
+- We can enable billing and also set billing alerts at the project level.
+- Organization has quota of number of projects that can be created
 - Track resources and their usage at the project level
 
 In Google Cloud, the project is a global entity and every project has 3 identifying attributes
@@ -43,3 +58,9 @@ Each project has this entities:
 - IAM policies
 
 ![img](https://d33wubrfki0l68.cloudfront.net/eaddeba5e864fe63444fe247f7a7277b427e42c2/ed88b/gcpimages/02-architecture/resource-hierarchy-overview.png)
+
+## Resource Hierarchy - Recommendations for Enterprises
+
+* Create **separate projects for different environments**
+* Create **separate folders for each department**
+* **One project per application per environment**
