@@ -167,6 +167,23 @@ This allows for the following use cases:
 IAM Conditions also enable granular control on which roles can be assigned or revoked. IAM Conditions also support secure tags. 
 Tags are access-controlled key/value resources defined at the organization level, which can be associated with hierarchy nodes (organization, folders, projects). Once tags are associated with a node, they can be set in IAM Conditions to scope role assignment to relevant nodes.
 
+```json
+"bindings": [
+  {
+    "role": "ROLE",
+    "members": [
+      "MEMBER_1",
+      "MEMBER_2"
+    ],
+    "condition": {
+      "title": "TITLE",
+      "description": "DESCRIPTION",
+      "expression": "EXPRESSION"
+    }
+  }
+]
+```
+
 ### How IAM Policies Work (The Hierarchy)
 
 Google Cloud resources are organized hierarchically like this:
@@ -222,6 +239,8 @@ When using Cloud IAM, you should map ***IAM policies to functional identities us
 * Use individual identity groups as recipients of functional sets of IAM roles, with clear permission scopes and boundaries (org, folder, project, resource).
 * Use groups to mirror on-premises workflows (networking, DevOps, etc.) or map to new cloud-specific workflows.
 * Minimize the points where IAM policies are applied by using folders.
+* Use service accounts for non-human access; rotate keys and use workload identity when possible.
+* Consider automation (*Terraform*) to enforce consistent IAM policies across environments.
 
 #### Principle of Least Privilege & Role Management
 1. **Avoid primitive roles**: Never use broad basic roles like Owner, Editor, or Viewer in production environments.
@@ -239,3 +258,68 @@ When using Cloud IAM, you should map ***IAM policies to functional identities us
 
 #### Auditing & Monitoring
 1. **Regularly review policies**: Audit access using Cloud Audit Logs, IAM Policy Analyzer, and role recommendations to revoke unused permissions.
+
+## A practical security hierarchy for implementing least privilege
+
+<table><thead><tr><th>Layer</th><th style="text-align: right;">Description</th><th>Example action</th></tr></thead><tbody><tr><td>Least-privileged accounts</td><td style="text-align: right;">Use distinct service/accounts for automation and limit scope</td><td>Create a service account for CI/CD with only BigQuery write permissions</td></tr><tr><td>Regular audits</td><td style="text-align: right;">Revoke stale roles and rotate credentials</td><td>Run monthly IAM access reviews and remove unused roles</td></tr><tr><td>Resource hierarchy</td><td style="text-align: right;">Grant at project/resource level instead of organization when possible</td><td>Grant Storage Object Viewer at bucket level not org level</td></tr><tr><td>Custom roles</td><td style="text-align: right;">Tailor permissions to exactly what the role needs</td><td>Create a role that allows <code>bigquery.jobs.create</code> and <code>bigquery.tables.get</code> only</td></tr><tr><td>Predefined roles</td><td style="text-align: right;">Use for common tasks when appropriate</td><td>Use <code>roles/logging.viewer</code> for log-read-only users</td></tr><tr><td>Minimum permissions</td><td style="text-align: right;">Final check to ensure permissions are strictly necessary</td><td>Reduce a role if it includes extra permissions not used by the workflow</td></tr></tbody></table>
+
+![img](https://mintcdn.com/kodekloud-c4ac6d9a/c09lTzXDcSD-W6MM/images/Google-Cloud-Professional-Data-Engineer-Certification/Identity-and-Access-Management-IAM-in-GCP/Cloud-IAM-Principles-of-Least-Privilege/security-hierarchy-pyramid-practices.jpg?w=1100&fit=max&auto=format&n=c09lTzXDcSD-W6MM&q=85&s=eed95542e7b550b9a47b685640d064c8)
+
+## Advanced Topics in Google Cloud IAM
+
+### 1. Cinditional Role Bindings
+Conditional Role Binding allow IAM policies to grant permissions **only if certain conditions are met.** Conditions can be based on attributes like request time, resource tags, or identity properties. 
+
+```json
+{
+  "bindings": [
+    {
+      "role": "roles/storage.objectViewer",
+      "members": [
+        "user:alice@example.com"
+      ],
+      "condition": {
+        "title": "AllowOnlyDuringBusinessHours",
+        "expression": "request.time.getHours() >= 9 && request.time.getHours() <= 17"
+      }
+    }
+  ]
+}
+# Include restricting access to working hours, controlling permissions based on network locations, and setting resource-specific access controls.
+```
+### 2. IAM Deny Policies (Newer Feature)
+IAM Deny Policies explicitly block certain actions, even when a user has roles that would otherwise allow them.
+
+***Deny policies take precedence over allow policies, offering a critical safeguard mechanism.***
+- Applied across organizations, folders or projects.
+- Support conditional expressions to fine
+- Useful for protecting critical resources from deletion or modification.
+
+**Example**: Prevent any user from deleting Cloud Storage buckets in a production project. 
+
+- Deny policies, like allow policies, are inherited through the resource hierarchy. When you attach a deny policy to a project, folder, or organization, the policy is also effective for all resources inside that project, folder, or organization.
+- **Denial conditions** specify the conditions that must be met in order for a deny rule to apply. If the condition evaluates to true or cannot be evaluated, the deny rule applies and the principals are unable to use the specified permissions. 
+
+![img](https://docs.cloud.google.com/static/iam/img/deny-centralize-admin-privileges-2.svg)
+
+### 3. Role Granting via Service Accounts
+Service accounts can be both *recipients* of roles and *delegators* of permissions. A common practice is granting a user permission to impersonate a service account, enabling scoped, time-limited access to resources.
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding my-service-account@my-project.iam.gserviceaccount.com \
+  --member="user:developer@example.com" \
+  --role="roles/iam.serviceAccountTokenCreator" 
+```
+### 4. Cross-Project and Cross-Organization Access Management
+In multi-project or multi-organization environments, it is often necessary to allow cross-boundary access.
+
+- Grant roles across projects by referencing fully-qualified member identities. 
+- Implement shared VPCs to centralize networking. 
+- Setup organizational trust models through **cloud identity federation** or **Goolge Workspace**
+
+Cross-project access demands careful governance to prevent unintended privilege escalation across administrative domains.
+
+## Common Pitfalls in Role Hierarchies and How to Avoid Them
+
+1. IAM policies applied at the folder level cascade down to all contained projects and resources. Ignoring this inheritance can lead to unexpected access rights.
+2. Basic roles (Owner, Editor, Viewer) are broad and grant more permissions than usually required. Using them in production increases the risk of privilege escalation and misconfigurations.
